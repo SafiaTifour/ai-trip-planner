@@ -7,6 +7,8 @@ import os
 import datetime
 from dotenv import load_dotenv
 from pydantic import BaseModel
+from langchain_core.messages import HumanMessage
+
 load_dotenv()
 
 app = FastAPI()
@@ -26,7 +28,7 @@ class QueryRequest(BaseModel):
 async def query_travel_agent(query: QueryRequest):
    try:
        print(query)
-       graph = GraphBuilder(model_provider="groq")
+       graph = GraphBuilder()
        react_app = graph()
 
        png_graph = react_app.get_graph().draw_mermaid_png()
@@ -34,8 +36,10 @@ async def query_travel_agent(query: QueryRequest):
            f.write(png_graph)
 
        print(f"Graph saved as 'my_graph.png' in {os.getcwd()}")
-       # Assuming request is a pydantic object like: {"question": "your text"}
-       messages = {"messages": [query.question]}
+       
+       # Create proper message format for LangGraph
+       human_message = HumanMessage(content=query.question)
+       messages = {"messages": [human_message]}
        output = react_app.invoke(messages)
 
        # If result is dict with messages:

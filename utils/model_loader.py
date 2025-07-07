@@ -1,54 +1,74 @@
-from utils.model_loader import ModelLoader
+import os
+from dotenv import load_dotenv
+from groq import Groq
 from config_loader import ConfigLoader
-from prompt_library.prompt import SYSTEM_PROMPT
-from langgraph.graph import StateGraph, MessagesState, END, START
-from langgraph.prebuilt import ToolNode, tools_condition
-from tools.weather_info_tool import WeatherInfoTool
-from tools.place_search_tool import PlaceSearchTool
-from tools.expense_calculator_tool import CalculatorTool
-from tools.currency_conversion_tool import CurrencyConverterTool
 
-class GraphBuilder():
-   def __init__(self, model_provider: str = "groq"):
-       self.config_loader = ConfigLoader()
-       self.model_loader = ModelLoader(self.config_loader)
-       self.llm = self.model_loader.get_model()
-       
-       self.tools = []
-       
-       self.weather_tools = WeatherInfoTool()
-       self.place_search_tools = PlaceSearchTool()
-       self.calculator_tools = CalculatorTool()
-       self.currency_converter_tools = CurrencyConverterTool()
-       
-       self.tools.extend([*self.weather_tools.weather_tool_list, 
-                          *self.place_search_tools.place_search_tool_list,
-                          *self.calculator_tools.calculator_tool_list,
-                          *self.currency_converter_tools.currency_converter_tool_list])
-       
-       self.llm_with_tools = self.llm.bind_tools(tools=self.tools)
-       
-       self.graph = None
-       
-       self.system_prompt = SYSTEM_PROMPT
-   
-   def agent_function(self, state: MessagesState):
-       """Main agent function"""
-       user_question = state["messages"]
-       input_question = [self.system_prompt] + user_question
-       response = self.llm_with_tools.invoke(input_question)
-       return {"messages": [response]}
-       
-   def build_graph(self):
-       graph_builder = StateGraph(MessagesState)
-       graph_builder.add_node("agent", self.agent_function)
-       graph_builder.add_node("tools", ToolNode(tools=self.tools))
-       graph_builder.add_edge(START, "agent")
-       graph_builder.add_conditional_edges("agent", tools_condition)
-       graph_builder.add_edge("tools", "agent")
-       graph_builder.add_edge("agent", END)
-       self.graph = graph_builder.compile()
-       return self.graph
-       
-   def __call__(self):
-       return self.build_graph()
+
+class ModelLoader:
+    def __init__(self, config_loader: ConfigLoader):
+        self.config_loader = config_loader
+        self.model = None
+        self.model_name = None
+        # Load environment variables
+        load_dotenv()
+
+    def load_model(self):
+        """Load the Groq model based on configuration"""
+        try:
+            # Get API key from environment variables
+            api_key = os.getenv('GROQ_API_KEY')
+            if not api_key:
+                raise ValueError("GROQ_API_KEY not found in environment variables")
+            
+            # Get model name from config
+            self.model_name = self.config_loader.get_model_name()
+            
+            # Initialize Groq client
+            self.model = Groq(api_key=api_key)
+            
+            print(f"Successfully loaded Groq model: {self.model_name}")
+            
+        except Exception as e:
+            raise Exception(f"Error loading model: {str(e)}")
+
+    def get_model(self):
+        """Get the loaded model, loading it if not already loaded"""
+        if self.model is None:
+            self.load_model()
+        return self.model
+
+    def generate_response(self, prompt, max_tokens=1000, temperature=0.7):
+        """Generate a response using the loaded model"""
+        if self.model is None:
+            self.load_model()
+        
+        try:
+            response = self.model.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            raise Exception(f"Error generating response: {str(e)}")
+
+
+# Example usage
+if __name__ == "__main__":
+    try:
+        # Initialize components
+        config_loader = ConfigLoader()
+        model_loader = ModelLoader(config_loader)
+        
+        # Load and get model
+        model = model_loader.get_model()
+        
+        # Test the model
+        response = model_loader.generate_response("Hello, how are you?")
+        print(f"Model response: {response}")
+        
+    except Exception as e:
+        print(f"Error: {str(e)}")
