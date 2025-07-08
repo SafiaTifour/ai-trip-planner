@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from groq import Groq
-from config_loader import ConfigLoader
+from utils.config_loader import ConfigLoader
 
 
 class ModelLoader:
