@@ -33,7 +33,7 @@ class AgenticWorkflow:
             model=self.model_loader.model_name,  
             temperature=0.1,
             api_key=os.environ.get("GROQ_API_KEY"),
-            max_tokens=1000
+            max_tokens=10000
         )
         
         
